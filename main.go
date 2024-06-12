@@ -153,32 +153,6 @@ func main() {
 		return c.JSON( fiber.Map{ "library_key": library_key , "session_id": session_id , "index": index } )
 	})
 
-	app.Get( "/:library_key/:session_id/:index" , func( c *fiber.Ctx ) error {
-		var ctx = context.Background()
-		library_key := c.Params( "library_key" )
-		session_id := c.Params( "session_id" )
-		ready_url := c.Query( "ready_url" )
-		index := c.Params( "index" )
-		global_key := fmt.Sprintf( "%s.%s", config.LibraryGlobalRedisKey, library_key )
-		global_key_index := fmt.Sprintf( "%s.INDEX" , global_key )
-
-		db.Set( ctx, global_key_index , index , 0 )
-		current_global_version := circular_set.Current( db, global_key )
-
-		time_str := "0"
-		fmt.Println( "loading id:", current_global_version )
-		fmt.Println( "loading index:", index )
-		fmt.Println( "loading time:", time_str )
-
-		path_key := fmt.Sprintf( "%s.%s", config.LibraryGlobalRedisKey, current_global_version )
-		path, _ := db.Get( ctx, path_key ).Result()
-		extension := filepath.Ext( path )[1:]
-
-		html := utils.GetMediaHTML( config.SessionKey, config.FilesURLPrefix, library_key, session_id, time_str, current_global_version, extension , ready_url )
-		c.Type( "html" )
-		return c.SendString( html )
-	})
-
 	// Endpoint to update playback position
 	app.Post( "/update_position", func( c *fiber.Ctx ) error {
 		session_key_header := c.Get( "k" )
@@ -221,6 +195,10 @@ func main() {
 
 		// 2.) Set Global Version of Session Clone to Sessions Current Index
 		session_index := db.Get( ctx, session_key_index_key ).Val()
+		if session_index == "" {
+			session_index = "0"
+			db.Set( ctx, session_key_index_key, session_index, 0 )
+		}
 		fmt.Println( "session index:", session_index )
 		db.Set( ctx, global_key_index, session_index, 0 )
 
@@ -260,6 +238,10 @@ func main() {
 
 		// 2.) Set Global Version of Session Clone to Sessions Current Index
 		session_index := db.Get( ctx, session_key_index_key ).Val()
+		if session_index == "" {
+			session_index = "0"
+			db.Set( ctx, session_key_index_key, session_index, 0 )
+		}
 		fmt.Println( "session index:", session_index )
 		db.Set( ctx, global_key_index, session_index, 0 )
 
@@ -304,7 +286,10 @@ func main() {
 
 		// 2.) Set Global Version of Session Clone to Sessions Current Index
 		session_index := db.Get( ctx, session_key_index_key ).Val()
-		if session_index == "" { session_index = "0" }
+		if session_index == "" {
+			session_index = "0"
+			db.Set( ctx, session_key_index_key, session_index, 0 )
+		}
 		db.Set( ctx, global_key_index, session_index, 0 )
 
 		// 3.) Get Current Global Version
@@ -338,6 +323,33 @@ func main() {
 		c.Type( "html" )
 		return c.SendString( html )
 	})
+
+	app.Get( "/:library_key/:session_id/:index" , func( c *fiber.Ctx ) error {
+		var ctx = context.Background()
+		library_key := c.Params( "library_key" )
+		session_id := c.Params( "session_id" )
+		ready_url := c.Query( "ready_url" )
+		index := c.Params( "index" )
+		global_key := fmt.Sprintf( "%s.%s", config.LibraryGlobalRedisKey, library_key )
+		global_key_index := fmt.Sprintf( "%s.INDEX" , global_key )
+
+		db.Set( ctx, global_key_index , index , 0 )
+		current_global_version := circular_set.Current( db, global_key )
+
+		time_str := "0"
+		fmt.Println( "loading id:", current_global_version )
+		fmt.Println( "loading index:", index )
+		fmt.Println( "loading time:", time_str )
+
+		path_key := fmt.Sprintf( "%s.%s", config.LibraryGlobalRedisKey, current_global_version )
+		path, _ := db.Get( ctx, path_key ).Result()
+		extension := filepath.Ext( path )[1:]
+
+		html := utils.GetMediaHTML( config.SessionKey, config.FilesURLPrefix, library_key, session_id, time_str, current_global_version, extension , ready_url )
+		c.Type( "html" )
+		return c.SendString( html )
+	})
+
 
 	log.Fatal( app.Listen( fmt.Sprintf( ":%s", config.ServerPort ) ) )
 }
