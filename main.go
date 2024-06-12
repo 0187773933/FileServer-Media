@@ -69,7 +69,7 @@ func main() {
 		// Force Reset
 		fmt.Println( "resetting global circular key:", global_circular_key )
 		db.Del( ctx, global_circular_key )
-		db.Del( ctx, global_circular_key + ".INDEX" )
+		// db.Del( ctx, global_circular_key + ".INDEX" )
 
 		for index, entry := range flattened_library_entries {
 			if entry.Path == "" {
@@ -85,6 +85,7 @@ func main() {
 			db.Set( ctx, global_entry_key, entry.Path, 0 )
 			// So these are setting up "sessions"
 			// a "session" here is just an ephemeral copy of the circular set's index tracking
+			fmt.Println( "adding" , global_circular_key, entry.ID )
 			circular_set.Add( db, global_circular_key, entry.ID )
 		}
 	}
@@ -173,7 +174,7 @@ func main() {
 		path, _ := db.Get( ctx, path_key ).Result()
 		extension := filepath.Ext( path )[1:]
 
-		html := utils.GetVideoHTML( config.SessionKey, config.FilesURLPrefix, library_key, session_id, time_str, current_global_version, extension , ready_url )
+		html := utils.GetMediaHTML( config.SessionKey, config.FilesURLPrefix, library_key, session_id, time_str, current_global_version, extension , ready_url )
 		c.Type( "html" )
 		return c.SendString( html )
 	})
@@ -240,7 +241,7 @@ func main() {
 		path, _ := db.Get( ctx, path_key ).Result()
 		extension := filepath.Ext( path )[1:]
 
-		html := utils.GetVideoHTML( config.SessionKey, config.FilesURLPrefix, library_key, session_id, "0", previous_id, extension , ready_url )
+		html := utils.GetMediaHTML( config.SessionKey, config.FilesURLPrefix, library_key, session_id, "0", previous_id, extension , ready_url )
 		c.Type( "html" )
 		return c.SendString( html )
 	} )
@@ -279,7 +280,7 @@ func main() {
 		path, _ := db.Get( ctx, path_key ).Result()
 		extension := filepath.Ext( path )[1:]
 
-		html := utils.GetVideoHTML( config.SessionKey, config.FilesURLPrefix, library_key, session_id, "0", next_id, extension , ready_url )
+		html := utils.GetMediaHTML( config.SessionKey, config.FilesURLPrefix, library_key, session_id, "0", next_id, extension , ready_url )
 		c.Type( "html" )
 		return c.SendString( html )
 	})
@@ -303,6 +304,7 @@ func main() {
 
 		// 2.) Set Global Version of Session Clone to Sessions Current Index
 		session_index := db.Get( ctx, session_key_index_key ).Val()
+		if session_index == "" { session_index = "0" }
 		db.Set( ctx, global_key_index, session_index, 0 )
 
 		// 3.) Get Current Global Version
@@ -332,7 +334,7 @@ func main() {
 		path, _ := db.Get( ctx, path_key ).Result()
 		extension := filepath.Ext( path )[1:]
 
-		html := utils.GetVideoHTML( config.SessionKey, config.FilesURLPrefix, library_key, session_id, time_str, next_id, extension , ready_url )
+		html := utils.GetMediaHTML( config.SessionKey, config.FilesURLPrefix, library_key, session_id, time_str, next_id, extension , ready_url )
 		c.Type( "html" )
 		return c.SendString( html )
 	})

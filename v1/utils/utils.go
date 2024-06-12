@@ -145,7 +145,7 @@ func DeleteKeysWithPattern(ctx context.Context, db *redis.Client, pattern string
 }
 
 
-func GetVideoHTML(
+func GetMediaHTML(
 	session_key string ,
 	files_url_prefix string ,
 	library_key string ,
@@ -155,167 +155,293 @@ func GetVideoHTML(
 	extension string ,
 	ready_url string ,
 ) ( html string ) {
-	html = fmt.Sprintf(`
-		<!DOCTYPE html>
-		<html lang="en">
-		<head>
-			<meta charset="UTF-8">
-			<meta name="viewport" content="width=device-width, initial-scale=1.0">
-			<title>Video Player</title>
-			<style>
-				body, html {
-					margin: 0;
-					padding: 0;
-					height: 100%%;
-					overflow: hidden;
-					display: flex;
-					justify-content: center;
-					align-items: center;
-					background: black;
-				}
-				video {
-					width: 100%%;
-					height: 100%%;
-					object-fit: contain;
-				}
-				.overlay {
-					position: absolute;
-					top: 0;
-					left: 0;
-					width: 100%%;
-					height: 100%%;
-					display: flex;
-					justify-content: center;
-					align-items: center;
-					background: rgba(0, 0, 0, 0.5);
-					color: white;
-					font-size: 24px;
-					cursor: pointer;
-				}
-			</style>
-		</head>
-		<body>
-			<video id="videoPlayer" controls>
-				Your browser does not support the video tag.
-			</video>
-			<div id="overlay" class="overlay">Click to Play</div>
-			<script>
-				document.addEventListener("DOMContentLoaded", () => {
-					const video = document.getElementById('videoPlayer');
-					const overlay = document.getElementById('overlay');
-					const session_key = "%s";
-					const files_prefix = "%s";
-					const library_key = "%s";
-					const session_id = "%s";
-					const time_str = "%s";
-					const uuid = "%s";
-					const extension = "%s";
-					const ready_url = "%s";
-					console.log( session_key , files_prefix , library_key , session_id , time_str , uuid , extension );
-					const video_src = "/" + files_prefix + "/" + uuid + "." + extension;
-					console.log( video_src );
-					video.src = video_src;
-
-					video.addEventListener( 'loadedmetadata', () => {
-						try {
-							if (time_str !== "") {
-								console.log('Setting time to', parseInt(time_str));
-								let x_time = parseInt( time_str );
-								if ( x_time > 2 ) {
-									let offset = ( x_time - 1 );
-									console.log( "using offset" , offset );
-									video.currentTime = offset;
-								}
-							}
-						} catch( e ) { console.log( e ); }
-						try {
-							fetch(ready_url, {
-							method: 'GET',
-							headers: {
-							    'Content-Type': 'application/json', // Set headers if necessary
-							},
-							credentials: 'include', // Include this if you need to send cookies
-							})
-							.then(response => {
-							if (!response.ok) {
-							    throw new Error('Network response was not ok ' + response.statusText);
-							}
-							return response.json();
-							})
-							.then(data => {
-							console.log(data);
-							})
-							.catch(error => {
-							console.error('Fetch error:', error);
-							});
-
-						}
-						catch( e ) { console.log( e ); }
-					});
-
-					overlay.addEventListener( 'click' , async () => {
-						overlay.style.display = 'none';
-						try {
-							video.play().then(() => {
+	if extension == "mp4" || extension == "webm" || extension == "ogg" {
+		html = fmt.Sprintf(`
+			<!DOCTYPE html>
+			<html lang="en">
+			<head>
+				<meta charset="UTF-8">
+				<meta name="viewport" content="width=device-width, initial-scale=1.0">
+				<title>Video Player</title>
+				<style>
+					body, html {
+						margin: 0;
+						padding: 0;
+						height: 100%%;
+						overflow: hidden;
+						display: flex;
+						justify-content: center;
+						align-items: center;
+						background: black;
+					}
+					video {
+						width: 100%%;
+						height: 100%%;
+						object-fit: contain;
+					}
+					.overlay {
+						position: absolute;
+						top: 0;
+						left: 0;
+						width: 100%%;
+						height: 100%%;
+						display: flex;
+						justify-content: center;
+						align-items: center;
+						background: rgba(0, 0, 0, 0.5);
+						color: white;
+						font-size: 24px;
+						cursor: pointer;
+					}
+				</style>
+			</head>
+			<body>
+				<video id="mediaPlayer" controls>
+					Your browser does not support the video tag.
+				</video>
+				<div id="overlay" class="overlay">Click to Play</div>
+				<script>
+					document.addEventListener("DOMContentLoaded", () => {
+						const media = document.getElementById('mediaPlayer');
+						const overlay = document.getElementById('overlay');
+						const session_key = "%s";
+						const files_prefix = "%s";
+						const library_key = "%s";
+						const session_id = "%s";
+						const time_str = "%s";
+						const uuid = "%s";
+						const extension = "%s";
+						const ready_url = "%s";
+						console.log( session_key , files_prefix , library_key , session_id , time_str , uuid , extension );
+						const media_src = "/" + files_prefix + "/" + uuid + "." + extension;
+						console.log( media_src );
+						media.src = media_src;
+						let signaled_ready_fresh = false;
+						let signaled_fresh = false;
+						media.addEventListener( 'loadedmetadata' , () => {
+							if ( !signaled_ready_fresh ) {
+								signaled_ready_fresh = true;
 								try {
-									if (video.requestFullscreen) {
-										video.requestFullscreen();
-									} else if (video.mozRequestFullScreen) {
-										video.mozRequestFullScreen();
-									} else if (video.webkitRequestFullscreen) {
-										video.webkitRequestFullscreen();
-									} else if (video.msRequestFullscreen) {
-										video.msRequestFullscreen();
+									let ready_fresh_url = ready_url.replace( "ready" , "readyfresh" );
+									console.log( ready_fresh_url );
+									fetch( ready_fresh_url , { method: 'GET' });
+								} catch( e ) { console.log( e ); }
+							}
+							try {
+								if ( time_str !== "") {
+									console.log('Setting time to', parseInt(time_str));
+									let x_time = parseInt( time_str );
+									if ( x_time > 2 ) {
+										let offset = ( x_time - 1 );
+										console.log( "using offset" , offset );
+										media.currentTime = offset;
 									}
-									if (time_str !== "") {
-										console.log('Setting time to', parseInt(time_str));
-										let x_time = parseInt( time_str );
-										if ( x_time > 2 ) {
-											let offset = ( x_time - 1 );
-											console.log( "using offset" , offset );
-											video.currentTime = offset;
-										}
-									}
-								} catch ( e ) { console.log( e ); }
-							}).catch(error => {
-								console.error('Error attempting to play video:', error);
-							});
-						} catch( e ) { console.log( e ); }
-					});
-
-					let last_time_update = 0;
-					video.addEventListener( 'timeupdate' , () => {
-						let x_time = Math.round( video.currentTime );
-						if ( x_time === last_time_update ) { return; }
-						last_time_update = x_time;
-						let duration = Math.round( video.duration );
-						let finished = false;
-						if ( x_time >= ( duration - 1 ) ) { finished = true; }
-						console.log( x_time , duration , finished );
-						fetch( '/update_position' , {
-							method: 'POST',
-							headers: { 'Content-Type': 'application/json' , "k": session_key } ,
-							body: JSON.stringify({ library_key: library_key , session_id: session_id , uuid: uuid , position: last_time_update , duration: duration , finished: finished })
+								}
+							} catch( e ) { console.log( e ); }
 						});
-						if (finished) {
-							setTimeout(() => {
-								document.exitFullscreen().then(() => {
+
+						overlay.addEventListener( 'click' , async () => {
+							overlay.style.display = 'none';
+							try {
+								media.play().then(() => {
+									try {
+										if (media.requestFullscreen) {
+											media.requestFullscreen();
+										} else if (media.mozRequestFullScreen) {
+											media.mozRequestFullScreen();
+										} else if (media.webkitRequestFullscreen) {
+											media.webkitRequestFullscreen();
+										} else if (media.msRequestFullscreen) {
+											media.msRequestFullscreen();
+										}
+										if (time_str !== "") {
+											console.log('Setting time to', parseInt(time_str));
+											let x_time = parseInt( time_str );
+											if ( x_time > 2 ) {
+												let offset = ( x_time - 1 );
+												console.log( "using offset" , offset );
+												media.currentTime = offset;
+											}
+										}
+									} catch ( e ) { console.log( e ); }
+									if ( !signaled_fresh ) {
+										signaled_fresh = true;
+										try {
+											console.log( ready_url );
+											fetch( ready_url , { method: 'GET' });
+										}
+										catch( e ) { console.log( e ); }
+									}
+								}).catch(error => {
+									console.error('Error attempting to play media:', error);
+								});
+							} catch( e ) { console.log( e ); }
+						});
+
+						let last_time_update = 0;
+						media.addEventListener( 'timeupdate' , () => {
+							let x_time = Math.round( media.currentTime );
+							if ( x_time === last_time_update ) { return; }
+							last_time_update = x_time;
+							let duration = Math.round( media.duration );
+							let finished = false;
+							if ( x_time >= ( duration - 1 ) ) { finished = true; }
+							console.log( x_time , duration , finished );
+							fetch( '/update_position' , {
+								method: 'POST',
+								headers: { 'Content-Type': 'application/json' , "k": session_key } ,
+								body: JSON.stringify({ library_key: library_key , session_id: session_id , uuid: uuid , position: last_time_update , duration: duration , finished: finished })
+							});
+							if (finished) {
+								setTimeout(() => {
+									document.exitFullscreen().then(() => {
+										let url = new URL(window.location.href);
+										url.searchParams.set( 'ready_url' , ready_url );
+										window.location.href = url.toString();
+									}).catch((err) => {
+										console.error('Error attempting to exit full-screen mode: ', err);
+										let url = new URL(window.location.href);
+										url.searchParams.set( 'ready_url' , ready_url );
+										window.location.href = url.toString(); // Fallback to refresh even if exit fullscreen fails
+									});
+								}, 1000);
+							}
+						});
+					});
+				</script>
+			</body>
+			</html>
+		`, session_key, files_url_prefix, library_key, session_id, time_str, next_id, extension, ready_url)
+	} else if (extension == "mp3" || extension == "wav" || extension == "ogg") {
+		html = fmt.Sprintf(`
+			<!DOCTYPE html>
+			<html lang="en">
+			<head>
+				<meta charset="UTF-8">
+				<meta name="viewport" content="width=device-width, initial-scale=1.0">
+				<title>Audio Player</title>
+				<style>
+					body, html {
+						margin: 0;
+						padding: 0;
+						height: 100%%;
+						overflow: hidden;
+						display: flex;
+						justify-content: center;
+						align-items: center;
+						background: black;
+						color: white;
+						font-size: 24px;
+					}
+					audio {
+						width: 100%%;
+					}
+					.overlay {
+						position: absolute;
+						top: 0;
+						left: 0;
+						width: 100%%;
+						height: 100%%;
+						display: flex;
+						justify-content: center;
+						align-items: center;
+						background: rgba(0, 0, 0, 0.5);
+						color: white;
+						font-size: 24px;
+						cursor: pointer;
+					}
+				</style>
+			</head>
+			<body>
+				<audio id="mediaPlayer" controls>
+					Your browser does not support the audio tag.
+				</audio>
+				<div id="overlay" class="overlay">Click to Play</div>
+				<script>
+					document.addEventListener("DOMContentLoaded", () => {
+						const media = document.getElementById('mediaPlayer');
+						const overlay = document.getElementById('overlay');
+						const session_key = "%s";
+						const files_prefix = "%s";
+						const library_key = "%s";
+						const session_id = "%s";
+						const time_str = "%s";
+						const uuid = "%s";
+						const extension = "%s";
+						const ready_url = "%s";
+						console.log( session_key , files_prefix , library_key , session_id , time_str , uuid , extension );
+						const media_src = "/" + files_prefix + "/" + uuid + "." + extension;
+						console.log( media_src );
+						media.src = media_src;
+						let signaled_ready_fresh = false;
+						let signaled_fresh = false;
+						media.addEventListener( 'loadedmetadata' , () => {
+							if ( !signaled_ready_fresh ) {
+								signaled_ready_fresh = true;
+								try {
+									let ready_fresh_url = ready_url.replace( "ready" , "readyfresh" );
+									console.log( ready_fresh_url );
+									fetch( ready_fresh_url , { method: 'GET' });
+								} catch( e ) { console.log( e ); }
+							}
+							try {
+								if ( time_str !== "") {
+									console.log('Setting time to', parseInt(time_str));
+									let x_time = parseInt( time_str );
+									if ( x_time > 2 ) {
+										let offset = ( x_time - 1 );
+										console.log( "using offset" , offset );
+										media.currentTime = offset;
+									}
+								}
+							} catch( e ) { console.log( e ); }
+						});
+
+						overlay.addEventListener( 'click' , async () => {
+							overlay.style.display = 'none';
+							try {
+								media.play().then(() => {
+									if ( !signaled_fresh ) {
+										signaled_fresh = true;
+										try {
+											console.log( ready_url );
+											fetch( ready_url , { method: 'GET' });
+										}
+										catch( e ) { console.log( e ); }
+									}
+								}).catch(error => {
+									console.error('Error attempting to play media:', error);
+								});
+							} catch( e ) { console.log( e ); }
+						});
+
+						let last_time_update = 0;
+						media.addEventListener( 'timeupdate' , () => {
+							let x_time = Math.round( media.currentTime );
+							if ( x_time === last_time_update ) { return; }
+							last_time_update = x_time;
+							let duration = Math.round( media.duration );
+							let finished = false;
+							if ( x_time >= ( duration - 1 ) ) { finished = true; }
+							console.log( x_time , duration , finished );
+							fetch( '/update_position' , {
+								method: 'POST',
+								headers: { 'Content-Type': 'application/json' , "k": session_key } ,
+								body: JSON.stringify({ library_key: library_key , session_id: session_id , uuid: uuid , position: last_time_update , duration: duration , finished: finished })
+							});
+							if (finished) {
+								setTimeout(() => {
 									let url = new URL(window.location.href);
 									url.searchParams.set( 'ready_url' , ready_url );
 									window.location.href = url.toString();
-								}).catch((err) => {
-									console.error('Error attempting to exit full-screen mode: ', err);
-									let url = new URL(window.location.href);
-									url.searchParams.set( 'ready_url' , ready_url );
-									window.location.href = url.toString(); // Fallback to refresh even if exit fullscreen fails
-								});
-							}, 1000);
-						}
+								}, 1000);
+							}
+						});
 					});
-				});
-			</script>
-		</body>
-		</html>
-	`,  session_key , files_url_prefix , library_key , session_id , time_str , next_id , extension , ready_url )
+				</script>
+			</body>
+			</html>
+		`, session_key, files_url_prefix, library_key, session_id, time_str, next_id, extension, ready_url)
+	}
 	return
 }
