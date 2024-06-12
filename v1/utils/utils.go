@@ -375,6 +375,7 @@ func GetMediaHTML(
 						media.src = media_src;
 						let signaled_ready_fresh = false;
 						let signaled_fresh = false;
+						let update_count = 0;
 						media.addEventListener( 'loadedmetadata' , () => {
 							if ( !signaled_ready_fresh ) {
 								signaled_ready_fresh = true;
@@ -429,12 +430,16 @@ func GetMediaHTML(
 								headers: { 'Content-Type': 'application/json' , "k": session_key } ,
 								body: JSON.stringify({ library_key: library_key , session_id: session_id , uuid: uuid , position: last_time_update , duration: duration , finished: finished })
 							});
-							if (finished) {
-								setTimeout(() => {
-									let url = new URL(window.location.href);
-									url.searchParams.set( 'ready_url' , ready_url );
-									window.location.href = url.toString();
-								}, 1000);
+							update_count += 1;
+							if ( update_count >= 3 ) {
+								if (finished) {
+									setTimeout(() => {
+										console.log( "calling refresh ???" );
+										let url = new URL(window.location.href);
+										url.searchParams.set( 'ready_url' , ready_url );
+										window.location.href = url.toString();
+									}, 1000);
+								}
 							}
 						});
 					});

@@ -3,10 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
+	"time"
 	"log"
 	"os"
 	"path/filepath"
-
+	"sync"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	redis "github.com/redis/go-redis/v9"
@@ -16,6 +17,7 @@ import (
 )
 
 var db *redis.Client
+var mutex = &sync.Mutex{}
 
 func setup_db( config *types.ConfigFile ) {
 	fmt.Println( "setting up database connection..." )
@@ -31,6 +33,14 @@ func setup_db( config *types.ConfigFile ) {
 		panic( err )
 	}
 }
+
+func setDebounceFlag(ctx context.Context, key string, ttl time.Duration) bool {
+	if db.SetNX(ctx, key, true, ttl).Val() {
+		return true
+	}
+	return false
+}
+
 
 func main() {
 
@@ -99,6 +109,14 @@ func main() {
 		AllowMethods: "GET, POST, PUT, DELETE, OPTIONS",
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization, k",
 	}))
+
+	app.Use(func(c *fiber.Ctx) error {
+		c.Set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate")
+		c.Set("Pragma", "no-cache")
+		c.Set("Expires", "0")
+		return c.Next()
+	})
+
 	// Original route to serve files
 	match_url := fmt.Sprintf( "/%s/:uuid.:ext", config.FilesURLPrefix )
 	app.Get( match_url, func( c *fiber.Ctx ) error {
@@ -106,7 +124,7 @@ func main() {
 		var ctx = context.Background()
 		global_entry_key := fmt.Sprintf( "%s.%s", config.LibraryGlobalRedisKey, uuid )
 		path, err := db.Get( ctx, global_entry_key ).Result()
-		fmt.Println( "serving file - uuid:", uuid, "global entry key:", global_entry_key, "path:", path )
+		// fmt.Println( "serving file - uuid:", uuid, "global entry key:", global_entry_key, "path:", path )
 		if err != nil {
 			return c.Status( fiber.StatusNotFound ).SendString( "file not found" )
 		}
@@ -182,6 +200,10 @@ func main() {
 	})
 
 	app.Get( "/:library_key/:session_id/previous", func( c *fiber.Ctx ) error {
+
+		// mutex.Lock()
+		// defer mutex.Unlock()
+
 		var ctx = context.Background()
 		library_key := c.Params( "library_key" )
 		session_id := c.Params( "session_id" )
@@ -191,40 +213,59 @@ func main() {
 		global_key_index := fmt.Sprintf( "%s.INDEX", global_key )
 		session_key_index_key := fmt.Sprintf( "%s.INDEX", session_key )
 
-		fmt.Println( "previous - library key:", library_key, "session id:", session_id, "session key:", session_key, "global key:", global_key , "ready url:" , ready_url )
+		// fmt.Println( "next - library key:", library_key, "session id:", session_id, "session key:", session_key, "global key:", global_key , "ready url:" , ready_url )
+		debounce_key := fmt.Sprintf( "debounce:%s:%s:previous", library_key, session_id )
+
+		// Set debounce flag with 1 second TTL
+		if !setDebounceFlag( ctx , debounce_key , 1*time.Second ) {
+			return c.Status( fiber.StatusTooManyRequests ).SendString( "Too many requests" )
+		}
 
 		// 2.) Set Global Version of Session Clone to Sessions Current Index
 		session_index := db.Get( ctx, session_key_index_key ).Val()
 		if session_index == "" {
+			fmt.Println( "New Session , Setting Index to 0" )
 			session_index = "0"
 			db.Set( ctx, session_key_index_key, session_index, 0 )
 		}
-		fmt.Println( "session index:", session_index )
+		// fmt.Println( "setting global index:" , session_index )
 		db.Set( ctx, global_key_index, session_index, 0 )
 
-		// 3.) Get Previous Global Version
-		previous_global_version := circular_set.Previous( db, global_key )
-		previous_id := previous_global_version
+		// 3.) Get Next Global Version
+		next_global_version := circular_set.Previous( db, global_key )
+		next_id := next_global_version
 		global_version_index := db.Get( ctx, global_key_index ).Val()
-		fmt.Println( "new index" , global_version_index )
-		db.Set( ctx, session_key_index_key, global_version_index, 0 )
+		// fmt.Println( "new index" , global_version_index )
+		db.Set( ctx, session_key_index_key , global_version_index , 0 )
 
 		// Reset FINISHED status
-		finished_key := fmt.Sprintf( "%s.%s.FINISHED", session_key, previous_id )
-		db.Set( ctx, finished_key, false, 0 )
+		finished_key := fmt.Sprintf( "%s.%s.FINISHED" , session_key , next_id )
+		db.Set( ctx , finished_key , false , 0 )
 
-		fmt.Println( "previous id:", previous_id )
+		return c.Redirect( fmt.Sprintf( "/%s/%s?ready_url=%s" , library_key , session_id , ready_url ) )
 
-		path_key := fmt.Sprintf( "%s.%s", config.LibraryGlobalRedisKey, previous_id )
-		path, _ := db.Get( ctx, path_key ).Result()
-		extension := filepath.Ext( path )[1:]
+		// path_key := fmt.Sprintf( "%s.%s", config.LibraryGlobalRedisKey , next_id )
+		// path , _ := db.Get( ctx , path_key ).Result()
+		// extension := filepath.Ext( path )[ 1: ]
 
-		html := utils.GetMediaHTML( config.SessionKey, config.FilesURLPrefix, library_key, session_id, "0", previous_id, extension , ready_url )
-		c.Type( "html" )
-		return c.SendString( html )
-	} )
+		// fmt.Println( "" )
+		// fmt.Println( "PREVIOUS || id:", next_id )
+		// fmt.Println( "PREVIOUS || previous-session-index:", session_index )
+		// fmt.Println( "PREVIOUS || new-session-index:", global_version_index )
+		// fmt.Println( "PREVIOUS || time:", "0" )
+		// fmt.Println( "PREVIOUS || path:" , path )
+		// fmt.Println( "PREVIOUS || extension:" , extension )
+
+		// html := utils.GetMediaHTML( config.SessionKey, config.FilesURLPrefix, library_key, session_id, "0", next_id, extension , ready_url )
+		// c.Type( "html" )
+		// return c.SendString( html )
+	})
 
 	app.Get( "/:library_key/:session_id/next", func( c *fiber.Ctx ) error {
+
+		// mutex.Lock()
+		// defer mutex.Unlock()
+
 		var ctx = context.Background()
 		library_key := c.Params( "library_key" )
 		session_id := c.Params( "session_id" )
@@ -234,39 +275,53 @@ func main() {
 		global_key_index := fmt.Sprintf( "%s.INDEX", global_key )
 		session_key_index_key := fmt.Sprintf( "%s.INDEX", session_key )
 
-		fmt.Println( "next - library key:", library_key, "session id:", session_id, "session key:", session_key, "global key:", global_key , "ready url:" , ready_url )
+		// fmt.Println( "next - library key:", library_key, "session id:", session_id, "session key:", session_key, "global key:", global_key , "ready url:" , ready_url )
+		debounce_key := fmt.Sprintf( "debounce:%s:%s:next", library_key, session_id )
+
+		// Set debounce flag with 1 second TTL
+		if !setDebounceFlag( ctx , debounce_key , 1*time.Second ) {
+			return c.Status( fiber.StatusTooManyRequests ).SendString( "Too many requests" )
+		}
 
 		// 2.) Set Global Version of Session Clone to Sessions Current Index
 		session_index := db.Get( ctx, session_key_index_key ).Val()
 		if session_index == "" {
+			fmt.Println( "New Session , Setting Index to 0" )
 			session_index = "0"
 			db.Set( ctx, session_key_index_key, session_index, 0 )
 		}
-		fmt.Println( "session index:", session_index )
+		// fmt.Println( "setting global index:" , session_index )
 		db.Set( ctx, global_key_index, session_index, 0 )
 
 		// 3.) Get Next Global Version
 		next_global_version := circular_set.Next( db, global_key )
 		next_id := next_global_version
 		global_version_index := db.Get( ctx, global_key_index ).Val()
-		fmt.Println( "new index" , global_version_index )
-		db.Set( ctx, session_key_index_key, global_version_index, 0 )
+		// fmt.Println( "new index" , global_version_index )
+		db.Set( ctx, session_key_index_key , global_version_index , 0 )
 
 		// Reset FINISHED status
 		finished_key := fmt.Sprintf( "%s.%s.FINISHED", session_key, next_id )
-		db.Set( ctx, finished_key, false, 0 )
+		db.Set( ctx , finished_key , false , 0 )
 
-		fmt.Println( "next id:", next_id )
+		return c.Redirect( fmt.Sprintf( "/%s/%s?ready_url=%s" , library_key , session_id , ready_url ) )
 
-		path_key := fmt.Sprintf( "%s.%s", config.LibraryGlobalRedisKey, next_id )
-		path, _ := db.Get( ctx, path_key ).Result()
-		extension := filepath.Ext( path )[1:]
+		// path_key := fmt.Sprintf( "%s.%s", config.LibraryGlobalRedisKey, next_id )
+		// path, _ := db.Get( ctx, path_key ).Result()
+		// extension := filepath.Ext( path )[1:]
 
-		html := utils.GetMediaHTML( config.SessionKey, config.FilesURLPrefix, library_key, session_id, "0", next_id, extension , ready_url )
-		c.Type( "html" )
-		return c.SendString( html )
+		// fmt.Println( "" )
+		// fmt.Println( "NEXT || id:", next_id )
+		// fmt.Println( "NEXT || previous-session-index:", session_index )
+		// fmt.Println( "NEXT || new-session-index:", global_version_index )
+		// fmt.Println( "NEXT || time:", "0" )
+		// fmt.Println( "NEXT || path:" , path )
+		// fmt.Println( "NEXT || extension:" , extension )
+
+		// html := utils.GetMediaHTML( config.SessionKey, config.FilesURLPrefix, library_key, session_id, "0", next_id, extension , ready_url )
+		// c.Type( "html" )
+		// return c.SendString( html )
 	})
-
 
 	// Serve HTML player
 	app.Get( "/:library_key/:session_id" , func( c *fiber.Ctx ) error {
@@ -282,15 +337,24 @@ func main() {
 		global_key_index := fmt.Sprintf( "%s.INDEX", global_key )
 		session_key_index_key := fmt.Sprintf( "%s.INDEX", session_key )
 
-		fmt.Println( "serve html player - library key:", library_key, "session id:", session_id, "session key:", session_key, "global key:", global_key , "ready url:" , ready_url )
+		// fmt.Println( "serve html player - library key:", library_key, "session id:", session_id, "session key:", session_key, "global key:", global_key , "ready url:" , ready_url )
+
+		debounce_key := fmt.Sprintf( "debounce:%s:%s:now-playing", library_key, session_id )
+
+		// Set debounce flag with 1 second TTL
+		if !setDebounceFlag( ctx , debounce_key , 1*time.Second ) {
+			return c.Status( fiber.StatusTooManyRequests ).SendString( "Too many requests" )
+		}
 
 		// 2.) Set Global Version of Session Clone to Sessions Current Index
 		session_index := db.Get( ctx, session_key_index_key ).Val()
+		// fmt.Println( "Session Index" , session_index )
 		if session_index == "" {
+			fmt.Println( "New Session , Setting Index to 0" )
 			session_index = "0"
-			db.Set( ctx, session_key_index_key, session_index, 0 )
+			db.Set( ctx, session_key_index_key,session_index , 0 )
 		}
-		db.Set( ctx, global_key_index, session_index, 0 )
+		db.Set( ctx , global_key_index , session_index , 0 )
 
 		// 3.) Get Current Global Version
 		current_global_version := circular_set.Current( db, global_key )
@@ -311,13 +375,16 @@ func main() {
 			time_str, _ = db.Get( ctx, session_time_key ).Result()
 		}
 
-		fmt.Println( "next id:", next_id )
-		fmt.Println( "next index:", next_index )
-		fmt.Println( "time:", time_str )
-
 		path_key := fmt.Sprintf( "%s.%s", config.LibraryGlobalRedisKey, next_id )
 		path, _ := db.Get( ctx, path_key ).Result()
 		extension := filepath.Ext( path )[1:]
+
+		fmt.Println( "" )
+		fmt.Println( "id:", next_id )
+		fmt.Println( "index:", next_index )
+		fmt.Println( "time:", time_str )
+		fmt.Println( "path:" , path )
+		fmt.Println( "extension:" , extension )
 
 		html := utils.GetMediaHTML( config.SessionKey, config.FilesURLPrefix, library_key, session_id, time_str, next_id, extension , ready_url )
 		c.Type( "html" )

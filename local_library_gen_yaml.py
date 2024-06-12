@@ -94,7 +94,8 @@ def get_files_recursively( base_dir ):
 if __name__ == "__main__":
 	base_directory = sys.argv[ 1 ] if len( sys.argv ) > 1 else os.getcwd()
 	base_directory_posix = Path( base_directory )
-	output_yaml_file = base_directory_posix.joinpath( f"{base_directory_posix.stem}.yaml" )
+	# output_yaml_file = base_directory_posix.joinpath( f"{base_directory_posix.stem}.yaml" )
+	output_yaml_file = Path.cwd().joinpath( f"{base_directory_posix.stem}.yaml" )
 
 	file_structure = get_files_recursively( base_directory )
 	save_to_yaml( file_structure , output_yaml_file )
