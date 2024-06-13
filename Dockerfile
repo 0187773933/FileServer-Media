@@ -21,9 +21,9 @@ RUN apt-get install bc -y
 RUN apt-get install pkg-config -y
 RUN apt-get install ffmpeg -y
 RUN apt-get install software-properties-common -y
-RUN add-apt-repository ppa:tomtomtom/yt-dlp
-RUN apt update
-RUN apt-get install yt-dlp -y
+# RUN add-apt-repository ppa:tomtomtom/yt-dlp
+# RUN apt update
+# RUN apt-get install yt-dlp -y
 
 # Setup User
 ENV TZ="US/Eastern"
