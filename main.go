@@ -403,7 +403,7 @@ func main() {
 		return c.SendString( html )
 	})
 
-	app.Get( fmt.Sprintf( "/:library_key/:session_id/:index" , config.FilesURLPrefix ) , func( c *fiber.Ctx ) error {
+	app.Get( fmt.Sprintf( "/%s/:library_key/:session_id/:index" , config.FilesURLPrefix ) , func( c *fiber.Ctx ) error {
 		var ctx = context.Background()
 		library_key := c.Params( "library_key" )
 		session_id := c.Params( "session_id" )
