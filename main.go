@@ -203,10 +203,9 @@ func main() {
 	})
 
 	// Endpoint to fetch playback position
-	app.Get( "/position" , func( c *fiber.Ctx ) error {
-		// TODO
-		return c.JSON( fiber.Map{ "position": 0 } )
-	})
+	// app.Get( "/position" , func( c *fiber.Ctx ) error {
+	// 	return c.JSON( fiber.Map{ "position": 0 } )
+	// })
 
 	app.Get( fmt.Sprintf( "/%s/:library_key/:session_id/previous" , config.FilesURLPrefix ) , func( c *fiber.Ctx ) error {
 
@@ -425,7 +424,6 @@ func main() {
 		c.Type( "html" )
 		return c.SendString( html )
 	})
-
 
 	log.Fatal( app.Listen( fmt.Sprintf( ":%s", config.ServerPort ) ) )
 }
