@@ -19,8 +19,8 @@ else
 	cd /home/morphs
 	sudo rm -rf /home/morphs/FileServerMedia
 	git clone "https://github.com/0187773933/FileServer-Media.git"
-	sudo chown -R morphs:morphs /home/morphs/FileServerMedia
-	cd /home/morphs/FileServerMedia
+	sudo chown -R morphs:morphs /home/morphs/FileServer-Media
+	cd /home/morphs/FileServer-Media
 	/usr/local/go/bin/go mod tidy
 	GOOS=linux GOARCH=amd64 /usr/local/go/bin/go build -o /home/morphs/FileServerMedia/server
 	exec /home/morphs/FileServerMedia/server "$@"

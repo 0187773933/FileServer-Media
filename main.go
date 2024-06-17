@@ -110,10 +110,19 @@ func main() {
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization, k",
 	}))
 
-	app.Use(func(c *fiber.Ctx) error {
-		c.Set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate")
-		c.Set("Pragma", "no-cache")
-		c.Set("Expires", "0")
+	app.Use( func( c *fiber.Ctx ) error {
+		c.Set( "Cache-Control" , "no-store, no-cache, must-revalidate, proxy-revalidate" )
+		c.Set( "Pragma" , "no-cache" )
+		c.Set( "Expires" , "0" )
+		return c.Next()
+	})
+
+	app.Use( func( c *fiber.Ctx ) error {
+		time_string := utils.GetFormattedTimeString()
+		ip_address := c.Get( "x-forwarded-for" )
+		if ip_address == "" { ip_address = c.IP() }
+		log_message := fmt.Sprintf( "%s === %s === %s === %s" , time_string , ip_address , c.Method() , c.Path() )
+		fmt.Println( log_message )
 		return c.Next()
 	})
 
@@ -131,7 +140,7 @@ func main() {
 		return c.SendFile( path, false )
 	})
 
-	app.Get( "/:library_key/:session_id/reset", func( c *fiber.Ctx ) error {
+	app.Get( fmt.Sprintf( "/%s/:library_key/:session_id/reset" , config.FilesURLPrefix ) , func( c *fiber.Ctx ) error {
 		library_key := c.Params( "library_key" )
 		session_id := c.Params( "session_id" )
 		var ctx = context.Background()
@@ -141,7 +150,7 @@ func main() {
 		return c.SendStatus( fiber.StatusOK )
 	})
 
-	app.Get( "/:library_key/:session_id/total" , func( c *fiber.Ctx ) error {
+	app.Get( fmt.Sprintf( "/%s/:library_key/:session_id/total" , config.FilesURLPrefix ) , func( c *fiber.Ctx ) error {
 		var ctx = context.Background()
 		library_key := c.Params( "library_key" )
 		session_id := c.Params( "session_id" )
@@ -150,7 +159,7 @@ func main() {
 		return c.JSON( fiber.Map{ "library_key": library_key , "session_id": session_id , "total": total } )
 	})
 
-	app.Get( "/:library_key/:session_id/index" , func( c *fiber.Ctx ) error {
+	app.Get( fmt.Sprintf( "/%s/:library_key/:session_id/index" , config.FilesURLPrefix ) , func( c *fiber.Ctx ) error {
 		var ctx = context.Background()
 		library_key := c.Params( "library_key" )
 		session_id := c.Params( "session_id" )
@@ -160,7 +169,7 @@ func main() {
 		return c.JSON( fiber.Map{ "library_key": library_key , "session_id": session_id , "index": session_index } )
 	})
 
-	app.Get( "/:library_key/:session_id/set/index/:index" , func( c *fiber.Ctx ) error {
+	app.Get( fmt.Sprintf( "/%s/:library_key/:session_id/set/index/:index" , config.FilesURLPrefix ) , func( c *fiber.Ctx ) error {
 		var ctx = context.Background()
 		library_key := c.Params( "library_key" )
 		session_id := c.Params( "session_id" )
@@ -199,7 +208,7 @@ func main() {
 		return c.JSON( fiber.Map{ "position": 0 } )
 	})
 
-	app.Get( "/:library_key/:session_id/previous", func( c *fiber.Ctx ) error {
+	app.Get( fmt.Sprintf( "/%s/:library_key/:session_id/previous" , config.FilesURLPrefix ) , func( c *fiber.Ctx ) error {
 
 		// mutex.Lock()
 		// defer mutex.Unlock()
@@ -261,7 +270,7 @@ func main() {
 		// return c.SendString( html )
 	})
 
-	app.Get( "/:library_key/:session_id/next", func( c *fiber.Ctx ) error {
+	app.Get( fmt.Sprintf( "/%s/:library_key/:session_id/next" , config.FilesURLPrefix ) , func( c *fiber.Ctx ) error {
 
 		// mutex.Lock()
 		// defer mutex.Unlock()
@@ -324,7 +333,7 @@ func main() {
 	})
 
 	// Serve HTML player
-	app.Get( "/:library_key/:session_id" , func( c *fiber.Ctx ) error {
+	app.Get( fmt.Sprintf( "/%s/:library_key/:session_id" , config.FilesURLPrefix ) , func( c *fiber.Ctx ) error {
 
 		var ctx = context.Background()
 
@@ -391,7 +400,7 @@ func main() {
 		return c.SendString( html )
 	})
 
-	app.Get( "/:library_key/:session_id/:index" , func( c *fiber.Ctx ) error {
+	app.Get( fmt.Sprintf( "/:library_key/:session_id/:index" , config.FilesURLPrefix ) , func( c *fiber.Ctx ) error {
 		var ctx = context.Background()
 		library_key := c.Params( "library_key" )
 		session_id := c.Params( "session_id" )
