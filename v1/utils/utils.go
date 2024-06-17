@@ -7,6 +7,7 @@ import (
 	"strings"
 	"strconv"
 	"io/ioutil"
+	"net/url"
 	"context"
 	"gopkg.in/yaml.v3"
 	redis "github.com/redis/go-redis/v9"
@@ -22,6 +23,18 @@ func SetupStackTraceReport() {
 		runtime.Stack( stacktrace , true )
 		fmt.Printf( "%s\n" , stacktrace )
 	}
+}
+
+func IsURL( input string ) ( result bool ) {
+	result = false
+	parsed_url , err := url.Parse( input )
+	fmt.Println( parsed_url , parsed_url.Scheme )
+	if err == nil {
+		if parsed_url.Scheme == "http" || parsed_url.Scheme == "https" {
+			result = true
+		}
+	}
+	return
 }
 
 var location , _ = time.LoadLocation( "America/New_York" )
