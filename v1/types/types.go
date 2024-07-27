@@ -8,6 +8,10 @@ type LibraryEntry struct {
 type UpdatePositionRequest struct {
 	LibraryKey   string `json:"library_key"`
 	SessionID   string `json:"session_id"`
+	YouTubePlaylistID string `json:"youtube_playlist_id"`
+	YouTubePlaylistIndex int `json:"youtube_playlist_index"`
+	Type string `json:"type"`
+	Title string `json:"title"`
 	UUID  string `json:"uuid"`
 	Position int `json:"position"`
 	Duration int `json:"duration"`
@@ -15,31 +19,28 @@ type UpdatePositionRequest struct {
 	ReadyURL string `json:"ready_url"`
 }
 
-type ConfigFile struct {
-	ServerName string `yaml:"server_name"`
-	ServerBaseUrl string `yaml:"server_base_url"`
-	ServerLiveUrl string `yaml:"server_live_url"`
-	ServerPrivateUrl string `yaml:"server_private_url"`
-	ServerPublicUrl string `yaml:"server_public_url"`
-	ServerPort string `yaml:"server_port"`
-	ServerAPIKey string `yaml:"server_api_key"`
-	ServerLoginUrlPrefix string `yaml:"server_login_url_prefix"`
-	ServerCookieName string `yaml:"server_cookie_name"`
-	ServerCookieSecret string `yaml:"server_cookie_secret"`
-	ServerCookieAdminSecretMessage string `yaml:"server_cookie_admin_secret_message"`
-	ServerCookieSecretMessage string `yaml:"server_cookie_secret_message"`
-	AdminUsername string `yaml:"admin_username"`
-	AdminPassword string `yaml:"admin_password"`
-	TimeZone string `yaml:"time_zone"`
-	SaveFilesPath string `yaml:"save_files_path"`
-	BoltDBPath string `yaml:"bolt_db_path"`
-	EncryptionKey string `yaml:"encryption_key"`
-	RedisAddress string `yaml:"redis_address"`
-	RedisDBNumber int `yaml:"redis_db_number"`
-	RedisPassword string `yaml:"redis_password"`
-	AllowOrigins string `yaml:"allow_origins"`
-	FilesURLPrefix string `yaml:"files_url_prefix"`
-	SessionKey string `yaml:"session_key"`
-	LibraryGlobalRedisKey string `yaml:"library_global_redis_key"`
-	Library map[string]LibraryEntry `yaml:"library"`
+type Library map[string]LibraryEntry
+
+type GetMediaHTMLParams struct {
+	SessionKey string `json:"session_key"`
+	FilesURLPrefix string `json:"files_url_prefix"`
+	LibraryKey string `json:"library_key"`
+	SessionID string `json:"session_id"`
+	TimeStr string `json:"time_str"`
+	NextID string `json:"next_id"`
+	Extension string `json:"extension"`
+	ReadyURL string `json:"ready_url"`
+	Type string `json:"type"`
+}
+
+type GetYouTubePlaylistParams struct {
+	SessionKey string `json:"session_key"`
+	LibraryKey string `json:"library_key"`
+	PlaylistID string `json:"playlist_id"`
+	ListID string `json:"library_key"`
+	SessionID string `json:"session_id"`
+	ReadyURL string `json:"ready_url"`
+	Type string `json:"type"`
+	Index string `json:"index"`
+	Time string `json:"time"`
 }

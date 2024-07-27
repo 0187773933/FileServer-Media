@@ -2,8 +2,9 @@ package utils
 
 import (
 	"fmt"
-	"time"
-	"runtime"
+	// "time"
+	// "runtime"
+	filepath "path/filepath"
 	"strings"
 	"strconv"
 	"io/ioutil"
@@ -11,19 +12,13 @@ import (
 	"context"
 	"gopkg.in/yaml.v3"
 	redis "github.com/redis/go-redis/v9"
+	slug "github.com/gosimple/slug"
 	types "github.com/0187773933/FileServer-Media/v1/types"
-	fiber_cookie "github.com/gofiber/fiber/v2/middleware/encryptcookie"
-	encryption "github.com/0187773933/encryption/v1/encryption"
-	// circular_set "github.com/0187773933/RedisCircular/v1/set"
+	// fiber_cookie "github.com/gofiber/fiber/v2/middleware/encryptcookie"
+	// encryption "github.com/0187773933/encryption/v1/encryption"
+	circular_set "github.com/0187773933/RedisCircular/v1/set"
+	server "github.com/0187773933/GO_SERVER/v1/server"
 )
-
-func SetupStackTraceReport() {
-	if r := recover(); r != nil {
-		stacktrace := make( []byte , 1024 )
-		runtime.Stack( stacktrace , true )
-		fmt.Printf( "%s\n" , stacktrace )
-	}
-}
 
 func IsURL( input string ) ( result bool ) {
 	result = false
@@ -34,17 +29,6 @@ func IsURL( input string ) ( result bool ) {
 			result = true
 		}
 	}
-	return
-}
-
-var location , _ = time.LoadLocation( "America/New_York" )
-func GetFormattedTimeString() ( result string ) {
-	time_object := time.Now().In( location )
-	month_name := strings.ToUpper( time_object.Format( "Jan" ) )
-	milliseconds := time_object.Format( ".000" )
-	date_part := fmt.Sprintf( "%02d%s%d" , time_object.Day() , month_name , time_object.Year() )
-	time_part := fmt.Sprintf( "%02d:%02d:%02d%s" , time_object.Hour() , time_object.Minute() , time_object.Second() , milliseconds )
-	result = fmt.Sprintf( "%s === %s" , date_part , time_part )
 	return
 }
 
@@ -60,32 +44,32 @@ type Entry struct {
 func ( e *Entry ) UnmarshalYAML( value *yaml.Node ) error {
 	if value.Kind == yaml.MappingNode {
 		for i := 0; i < len( value.Content ); i += 2 {
-			keyNode := value.Content[i]
-			valueNode := value.Content[ i+1 ]
+			keyNode := value.Content[ i ]
+			valueNode := value.Content[ ( i + 1 ) ]
 			if keyNode.Value == "extension" {
 				e.Extension = valueNode.Value
 			} else if keyNode.Value == "id" {
 				e.ID = valueNode.Value
 			} else if keyNode.Value == "length" {
-				fmt.Sscanf(valueNode.Value, "%d", &e.Length)
+				fmt.Sscanf( valueNode.Value , "%d" , &e.Length )
 			} else if keyNode.Value == "path" {
 				e.Path = valueNode.Value
 			} else {
 				e.Name = keyNode.Value
 				var items []*Entry
-				if err := valueNode.Decode(&items); err != nil {
+				if err := valueNode.Decode( &items ); err != nil {
 					return err
 				}
 				e.Items = items
 			}
 		}
 	} else if value.Kind == yaml.SequenceNode {
-		for _, itemNode := range value.Content {
+		for _ , itemNode := range value.Content {
 			var item Entry
-			if err := itemNode.Decode(&item); err != nil {
+			if err := itemNode.Decode( &item ); err != nil {
 				return err
 			}
-			e.Items = append(e.Items, &item)
+			e.Items = append( e.Items , &item )
 		}
 	}
 	return nil
@@ -111,58 +95,24 @@ func GetFlattenedEntries( yaml_file_path string ) ( result []Entry ) {
 	return
 }
 
-func GenerateNewKeys() {
-	fiber_cookie_key := fiber_cookie.GenerateKey()
-	encryption_key := encryption.GenerateRandomString( 32 )
-	server_api_key := encryption.GenerateRandomString( 16 )
-	admin_username := encryption.GenerateRandomString( 16 )
-	admin_password := encryption.GenerateRandomString( 16 )
-	session_key := encryption.GenerateRandomString( 16 )
-	login_url := encryption.GenerateRandomString( 16 )
-	files_url_prefix := encryption.GenerateRandomString( 8 )
-	fmt.Println( "Generated New Keys :" )
-	fmt.Printf( "\tFiber Cookie Key === %s\n" , fiber_cookie_key )
-	fmt.Printf( "\tEncryption Key === %s\n" , encryption_key )
-	fmt.Printf( "\tServer API Key === %s\n" , server_api_key )
-	fmt.Printf( "\tAdmin Username === %s\n" , admin_username )
-	fmt.Printf( "\tAdmin Password === %s\n" , admin_password )
-	fmt.Printf( "\tSession Key === %s\n" , session_key )
-	fmt.Printf( "\tLogin URL === %s\n" , login_url )
-	fmt.Printf( "\tFiles URL Prefix === %s\n" , files_url_prefix )
-	panic( "Exiting" )
-}
-
-func ParseConfig( file_path string ) ( result types.ConfigFile ) {
-	config_file , _ := ioutil.ReadFile( file_path )
-	error := yaml.Unmarshal( config_file , &result )
-	if error != nil { panic( error ) }
-	return
-}
-
 func RedisGetBool( ctx context.Context , client *redis.Client , key string ) ( result bool ) {
 	result_str := client.Get( ctx , key ).Val()
 	result , _ = strconv.ParseBool( result_str )
 	return
 }
 
-
-func DeleteKeysWithPattern(ctx context.Context, db *redis.Client, pattern string) error {
+func DeleteKeysWithPattern( ctx context.Context , db *redis.Client , pattern string ) error {
 	var cursor uint64
 	var keys []string
 	var err error
-
 	for {
-		keys, cursor, err = db.Scan(ctx, cursor, pattern, 0).Result()
-		if err != nil {
-			return err
-		}
-
-		if len(keys) > 0 {
-			if _, err := db.Del(ctx, keys...).Result(); err != nil {
+		keys, cursor, err = db.Scan( ctx , cursor , pattern , 0 ).Result()
+		if err != nil { return err }
+		if len( keys ) > 0 {
+			if _ , err := db.Del( ctx , keys... ).Result(); err != nil {
 				return err
 			}
 		}
-
 		if cursor == 0 {
 			break
 		}
@@ -170,18 +120,57 @@ func DeleteKeysWithPattern(ctx context.Context, db *redis.Client, pattern string
 	return nil
 }
 
+func ImportLibrarySaveFilesInToRedis( s *server.Server ) {
+	var ctx = context.Background()
+	// defer redis_connection.FlushDB( ctx ).Err()
+	files , _ := ioutil.ReadDir( s.Config.SaveFilesPath )
+	for _ , file := range files {
 
-func GetMediaHTML(
-	session_key string ,
-	files_url_prefix string ,
-	library_key string ,
-	session_id string ,
-	time_str string ,
-	next_id string ,
-	extension string ,
-	ready_url string ,
-) ( html string ) {
-	if extension == "mp4" || extension == "webm" || extension == "ogg" {
+		if file.IsDir() { continue }
+		if strings.HasSuffix( file.Name() , ".yaml" ) == false { continue }
+		file_path := filepath.Join( s.Config.SaveFilesPath , file.Name() )
+		library_entries := GetFlattenedEntries( file_path )
+		total_entries := len( library_entries )
+		if total_entries < 1 { continue }
+
+		// global_circular_key := fmt.Sprintf( "%s.%s", s.Config.Redis.Prefix , library_entry.RedisKey )
+		file_name := strings.TrimSuffix( file.Name() , filepath.Ext( file.Name() ) )
+		file_name_slug := slug.Make( file_name )
+		global_circular_key := fmt.Sprintf( "%s.%s" , s.Config.Redis.Prefix , file_name_slug )
+
+		s.REDIS.SAdd( ctx , s.Config.Redis.Prefix + ".LIBRARY" , file_name_slug )
+
+		// Force Reset
+		redis_reset := true
+		if redis_reset == true {
+			// fmt.Println( "resetting global circular key:" , global_circular_key , file_path , total_entries )
+			s.REDIS.Del( ctx , global_circular_key )
+			// db.Del( ctx, global_circular_key + ".INDEX" )
+		}
+
+		for index, entry := range library_entries {
+			if entry.Path == "" {
+				continue
+			}
+			if entry.ID == "" {
+				continue
+			}
+			fmt.Printf( "index: %d, name: %s, path: %s, id: %s\n" , index , entry.Name , entry.Path , entry.ID )
+			global_entry_key := fmt.Sprintf( "%s.%s" , s.Config.Redis.Prefix , entry.ID )
+
+			// Minimum need the path, could json blob store here instead
+			s.REDIS.Set( ctx , global_entry_key , entry.Path , 0 )
+			// So these are setting up "sessions"
+			// a "session" here is just an ephemeral copy of the circular set's index tracking
+			fmt.Println( "adding" , global_circular_key , entry.ID )
+			circular_set.Add( s.REDIS , global_circular_key , entry.ID )
+		}
+		fmt.Println( "done" )
+	}
+}
+
+func GetMediaHTML( params types.GetMediaHTMLParams ) ( html string ) {
+	if params.Extension == "mp4" || params.Extension == "webm" {
 		html = fmt.Sprintf(`
 			<!DOCTYPE html>
 			<html lang="en">
@@ -238,6 +227,7 @@ func GetMediaHTML(
 						const uuid = "%s";
 						const extension = "%s";
 						const ready_url = "%s";
+						const media_type = "%s";
 						console.log( session_key , files_prefix , library_key , session_id , time_str , uuid , extension );
 						const media_src = "/" + files_prefix + "/" + uuid + "." + extension;
 						console.log( media_src );
@@ -337,8 +327,8 @@ func GetMediaHTML(
 				</script>
 			</body>
 			</html>
-		`, session_key, files_url_prefix, library_key, session_id, time_str, next_id, extension, ready_url)
-	} else if (extension == "mp3" || extension == "wav" || extension == "ogg") {
+		`, params.SessionKey , params.FilesURLPrefix , params.LibraryKey , params.SessionID , params.TimeStr , params.NextID , params.Extension , params.ReadyURL , params.Type )
+	} else if ( params.Extension == "mp3" || params.Extension == "wav" || params.Extension == "ogg") {
 		html = fmt.Sprintf(`
 			<!DOCTYPE html>
 			<html lang="en">
@@ -395,6 +385,7 @@ func GetMediaHTML(
 						const uuid = "%s";
 						const extension = "%s";
 						const ready_url = "%s";
+						const media_type = "%s";
 						console.log( session_key , files_prefix , library_key , session_id , time_str , uuid , extension );
 						const media_src = "/" + files_prefix + "/" + uuid + "." + extension;
 						console.log( media_src );
@@ -472,7 +463,155 @@ func GetMediaHTML(
 				</script>
 			</body>
 			</html>
-		`, session_key, files_url_prefix, library_key, session_id, time_str, next_id, extension, ready_url)
+		`, params.SessionKey , params.FilesURLPrefix , params.LibraryKey , params.SessionID , params.TimeStr , params.NextID , params.Extension , params.ReadyURL , params.Type )
 	}
+	return
+}
+
+func GetYouTubePlaylistHTML( params types.GetYouTubePlaylistParams ) ( html string ) {
+	html = fmt.Sprintf(`<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>YouTube Playlist</title>
+	<style>
+		body, html {
+			height: 100%%;
+			width: 100%%;
+			margin: 0;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			background-color: black;
+		}
+		#yt-wrap {
+			width: 100%%;
+			height: 100%%;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+		}
+		#ytplayer {
+			width: 100%%;
+			height: 100%%;
+		}
+		#playButton {
+			position: absolute;
+			top: 50%%;
+			left: 50%%;
+			transform: translate(-50%%, -50%%);
+			background-color: white;
+			padding: 10px 20px;
+			cursor: pointer;
+			z-index: 1;
+		}
+	</style>
+</head>
+<body>
+	<div id="yt-wrap">
+		<div id="ytplayer"></div>
+		<div id="playButton">Play</div>
+	</div>
+	<script>
+		const session_key = "%s";
+		const library_key = "%s";
+		const playlistId = "%s";
+		const session_id = "%s";
+		const startTime = "%s";
+		const startIndex = "%s";
+		const ready_url = "%s";
+		var tag = document.createElement('script');
+		tag.src = "https://www.youtube.com/player_api";
+		var firstScriptTag = document.getElementsByTagName('script')[0];
+		firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+		function onYouTubePlayerAPIReady() {
+			let x = new YT.Player('ytplayer', {
+				width: '100%%',
+				height: '100%%',
+				playerVars: {
+					'autoplay': 0,
+					'playsinline': 1,
+				},
+				events: {
+					'onReady': onPlayerReady,
+					'onStateChange': onPlayerStateChange
+				}
+			});
+			window.player = x;
+			window.LAST_UPDATED_TIME = 0;
+			startTrackingPosition();
+		}
+		function onPlayerReady(event) {
+			document.getElementById('playButton').addEventListener('click', () => {
+				window.player.loadPlaylist({
+					list: playlistId,
+					index: parseInt( startIndex ) ,
+					startSeconds: parseInt( startTime ) ,
+				});
+				window.player.playVideo();
+				document.getElementById('playButton').style.display = 'none';
+			});
+		}
+		function setMaxQuality() {
+			const qualities = window.player.getAvailableQualityLevels();
+			if (qualities.length) {
+				console.log( "setting quality to" , qualities[0] );
+				window.player.setPlaybackQuality(qualities[0]);
+			}
+		}
+		function onPlayerStateChange(event) {
+			if (event.data === YT.PlayerState.ENDED) {
+				if (window.player.getPlaylistIndex() < window.player.getPlaylist().length - 1) {
+					window.player.nextVideo();
+				}
+			} else if (event.data === YT.PlayerState.PLAYING) {
+				setMaxQuality();
+			}
+		}
+		function getCurrentVideoId() {
+			const videoUrl = window.player.getVideoUrl();
+			const urlParams = new URLSearchParams(new URL(videoUrl).search);
+			const videoId = urlParams.get('v');
+			return videoId;
+		}
+		function getCurrentVideoTitle() {
+			const videoData = window.player.getVideoData();
+			const videoTitle = videoData.title;
+			return videoTitle;
+		}
+		function startTrackingPosition() {
+			setInterval(() => {
+				if ( !window.player ) { return; }
+				const currentTime = parseInt( window.player.getCurrentTime() );
+				if ( currentTime === window.LAST_UPDATED_TIME ) { return; }
+				window.LAST_UPDATED_TIME = currentTime;
+				const duration = parseInt( window.player.getDuration() );
+				const videoId = getCurrentVideoId();
+				const videoTitle = getCurrentVideoTitle();
+				const playlistIndex = window.player.getPlaylistIndex();
+				let info = {
+					library_key: playlistId ,
+					session_id: session_id ,
+					library_key: library_key ,
+					youtube_playlist_id: playlistId ,
+					youtube_playlist_index: playlistIndex ,
+					title: videoTitle ,
+					position: currentTime ,
+					duration: duration ,
+					ready_url: ready_url ,
+					type: "youtube-playlist" ,
+				};
+				console.log( info );
+				fetch( '/update_position' , {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' , "k": session_key } ,
+					body: JSON.stringify( info )
+				});
+			}, 1000 );
+		}
+	</script>
+</body>
+</html>` , params.SessionKey , params.LibraryKey , params.PlaylistID , params.SessionID , params.Time , params.Index , params.ReadyURL )
 	return
 }

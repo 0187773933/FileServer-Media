@@ -19,11 +19,11 @@ RUN apt-get install net-tools -y
 RUN apt-get install iproute2 -y
 RUN apt-get install bc -y
 RUN apt-get install pkg-config -y
-RUN apt-get install ffmpeg -y
 RUN apt-get install software-properties-common -y
-# RUN add-apt-repository ppa:tomtomtom/yt-dlp
-# RUN apt update
-# RUN apt-get install yt-dlp -y
+RUN apt-get install python3 -y
+RUN apt-get install python3-pip -y
+RUN apt-get install python3-venv -y
+RUN apt-get install python3-yaml -y
 
 # Setup User
 ENV TZ="US/Eastern"
@@ -47,9 +47,9 @@ RUN echo "PATH=$PATH:/usr/local/go/bin" | tee -a /home/$USERNAME/.bashrc
 
 # prep files for building server binary
 USER root
-RUN mkdir /home/morphs/FileServerMedia
-COPY . /home/morphs/FileServerMedia
-RUN chown -R $USERNAME:$USERNAME /home/morphs/FileServerMedia
+RUN mkdir /home/morphs/DockerBuild
+COPY . /home/morphs/DockerBuild
+RUN chown -R $USERNAME:$USERNAME /home/morphs/DockerBuild
 WORKDIR /home/$USERNAME
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
