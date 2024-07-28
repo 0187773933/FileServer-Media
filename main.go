@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 	"strings"
+	"context"
 	bolt "github.com/boltdb/bolt"
 	redis "github.com/redis/go-redis/v9"
 	logger "github.com/0187773933/Logger/v1/logger"
@@ -52,6 +53,8 @@ func main() {
 		Password: config.Redis.Password ,
 		DB: config.Redis.Number ,
 	})
+	_ , err := REDIS.Ping( context.Background() ).Result()
+	if err != nil { panic( err ) }
 	s.REDIS = REDIS
 
 	// custom
