@@ -596,6 +596,7 @@ func GetYouTubePlaylistHTML( params types.GetYouTubePlaylistParams ) ( html stri
 		function startTrackingPosition() {
 			setInterval(() => {
 				if ( !window.player ) { return; }
+				if ( !window.player.getCurrentTime ) { return; }
 				const currentTime = parseInt( window.player.getCurrentTime() );
 				if ( currentTime === window.LAST_UPDATED_TIME ) { return; }
 				window.LAST_UPDATED_TIME = currentTime;
