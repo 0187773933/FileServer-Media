@@ -41,7 +41,7 @@ func main() {
 
 	// start
 	config := server_utils.GetConfig()
-	// utils.GenerateNewKeysWrite( &config )
+	// server_utils.GenerateNewKeysWrite( &config )
 	defer server_utils.SetupStackTraceReport()
 	logger.New( &config.Log )
 	DB , _ = bolt.Open( config.Bolt.Path , 0600 , &bolt.Options{ Timeout: ( 3 * time.Second ) } )
@@ -55,7 +55,7 @@ func main() {
 	s.REDIS = REDIS
 
 	// custom
-	// utils.ImportLibrarySaveFilesInToRedis( &s )
+	utils.ImportLibrarySaveFilesInToRedis( &s )
 	allow_origins_string := strings.Join( config.AllowOrigins , "," )
 	s.STORE[ "session_key" ] = s.ConfigGenericGet( "creds" , "session_key" ).( string )
 	s.STORE[ "google_key" ] = s.ConfigGenericGet( "creds" , "google_key" ).( string )
