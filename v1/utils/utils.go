@@ -560,6 +560,18 @@ func GetYouTubePlaylistHTML( params types.GetYouTubePlaylistParams ) ( html stri
 				window.player.setPlaybackQuality(qualities[0]);
 			}
 		}
+		function requestFullscreen() {
+			const playerElement = document.getElementById('ytplayer');
+			if (playerElement.requestFullscreen) {
+				playerElement.requestFullscreen();
+			} else if (playerElement.mozRequestFullScreen) { // Firefox
+				playerElement.mozRequestFullScreen();
+			} else if (playerElement.webkitRequestFullscreen) { // Chrome, Safari and Opera
+				playerElement.webkitRequestFullscreen();
+			} else if (playerElement.msRequestFullscreen) { // IE/Edge
+				playerElement.msRequestFullscreen();
+			}
+		}
 		function onPlayerStateChange(event) {
 			if (event.data === YT.PlayerState.ENDED) {
 				if (window.player.getPlaylistIndex() < window.player.getPlaylist().length - 1) {
@@ -567,6 +579,7 @@ func GetYouTubePlaylistHTML( params types.GetYouTubePlaylistParams ) ( html stri
 				}
 			} else if (event.data === YT.PlayerState.PLAYING) {
 				setMaxQuality();
+				requestFullscreen();
 			}
 		}
 		function getCurrentVideoId() {

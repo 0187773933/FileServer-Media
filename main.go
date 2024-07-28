@@ -54,7 +54,7 @@ func main() {
 		DB: config.Redis.Number ,
 	})
 	_ , err := REDIS.Ping( context.Background() ).Result()
-	if err != nil { panic( err ) }
+	if err != nil { fmt.Println( err ); panic( err ) }
 	s.REDIS = REDIS
 
 	// custom
