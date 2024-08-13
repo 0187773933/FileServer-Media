@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Twitch Playlist Viewer</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+        #twitch-player-container {
+            width: 100%;
+            height: 100vh;
+        }
+    </style>
+</head>
+<body>
+    <div id="twitch-player-container"></div>
+
+    <script src="https://embed.twitch.tv/embed/v1.js"></script>
+    <script>
+        const streams = ['sotchi_riot', 'awatermanslife', 'gavrilka']; // Replace with actual Twitch streamer names
+        let currentStreamIndex = 0;
+        const rotationInterval = 1 * 60 * 1000; // 1 minute in milliseconds
+
+        function loadTwitchPlayer(stream) {
+            const container = document.getElementById('twitch-player-container');
+            container.innerHTML = ''; // Clear previous player if any
+
+            const embed = new Twitch.Embed("twitch-player-container", {
+                width: "100%",
+                height: "100%",
+                channel: stream,
+                layout: "video",
+                allowfullscreen: true,
+                muted: false,
+                parent: ["localhost" , "msa.5404097.org"]
+            });
+
+            embed.addEventListener(Twitch.Embed.VIDEO_READY, () => {
+                // alert("here anyway");
+                window.PLAYER = embed.getPlayer();
+                window.PLAYER.play();
+                let qualities = window.PLAYER.getQualities();
+                window.PLAYER.setQuality(qualities[qualities.length - 1]);
+                window.PLAYER.setVolume(1.0);
+                window.PLAYER.addEventListener(Twitch.Player.ENDED, on_ended);
+                window.PLAYER.addEventListener(Twitch.Player.PAUSE, on_paused);
+                window.PLAYER.addEventListener(Twitch.Player.PLAY, on_play);
+                window.PLAYER.addEventListener(Twitch.Player.OFFLINE, on_offline);
+                window.PLAYER.addEventListener(Twitch.Player.ONLINE, on_online);
+                window.PLAYER.addEventListener(Twitch.Player.READY, on_ready);
+                window.PLAYER.addEventListener(Twitch.Player.SEEK, on_seek);
+                requestFullScreen(container);
+            });
+        }
+
+        function on_ended(event) {
+            console.log("stream ended", event);
+        }
+
+        function on_paused(event) {
+            console.log("stream paused", event);
+        }
+
+        function on_play(event) {
+            console.log("stream playing", event);
+        }
+
+        function on_offline(event) {
+            console.log("stream offline", event);
+        }
+
+        function on_online(event) {
+            console.log("stream online", event);
+        }
+
+        function on_ready(event) {
+            console.log("stream ready", event);
+        }
+
+        function on_seek(event) {
+            console.log("stream seeking", event);
+        }
+
+        function requestFullScreen(element) {
+            if (element.requestFullscreen) {
+                element.requestFullscreen();
+            } else if (element.mozRequestFullScreen) { // Firefox
+                element.mozRequestFullScreen();
+            } else if (element.webkitRequestFullscreen) { // Chrome, Safari and Opera
+                element.webkitRequestFullscreen();
+            } else if (element.msRequestFullscreen) { // IE/Edge
+                element.msRequestFullscreen();
+            }
+        }
+
+        function rotateStreams() {
+            loadTwitchPlayer(streams[currentStreamIndex]);
+            currentStreamIndex = (currentStreamIndex + 1) % streams.length;
+        }
+
+        window.onload = () => {
+            rotateStreams(); // Load the first stream initially
+            setInterval(rotateStreams, rotationInterval); // Set up the interval for rotation
+        };
+    </script>
+</body>
+</html>

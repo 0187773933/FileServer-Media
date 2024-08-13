@@ -217,7 +217,14 @@ func SessionHTMLPlayer( s *server.Server ) fiber.Handler {
 		}
 
 		path_key := fmt.Sprintf( "%s.%s" , s.Config.Redis.Prefix , next_id )
-		path , _ := s.REDIS.Get( ctx , path_key ).Result()
+		path , path_err := s.REDIS.Get( ctx , path_key ).Result()
+
+		if path_err != nil {
+			return c.SendStatus( fiber.StatusNotFound )
+		}
+		if path == "" {
+			return c.SendStatus( fiber.StatusNotFound )
+		}
 
 		var html string
 		if strings.HasPrefix( path , "youtube::" ) {
@@ -228,7 +235,12 @@ func SessionHTMLPlayer( s *server.Server ) fiber.Handler {
 			id := strings.Split( path , "::" )[ 1 ]
 			fmt.Println( "twitch id:" , id )
 		} else {
-			extension := filepath.Ext( path )[ 1: ]
+			extension_test := filepath.Ext( path )
+			if extension_test == "" {
+				c.Type( "html" )
+				return c.SendString( "asdf" )
+			}
+			extension := extension_test[ 1: ]
 			fmt.Println( "" )
 			fmt.Println( "id:" , next_id )
 			fmt.Println( "index:" , next_index )

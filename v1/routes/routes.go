@@ -12,10 +12,13 @@ func SetupPublicRoutes( s *server.Server ) {
 			"url": "/" ,
 		})
 	})
-	s.FiberApp.Post( "/update_position" , UpdatePosition( s ) )
+	s.FiberApp.Get( "/twitch" , func( c *fiber.Ctx ) error {
+		c.Set( "Content-Type" , "text/html" )
+		return c.SendFile( "./v1/html/twitch.html" )
+	})
+	s.FiberApp.Post( "/update_position" , PublicLimter , UpdatePosition( s ) )
 	prefix := s.FiberApp.Group( s.Config.URLS.Prefix )
-	prefix.Use( PublicLimter )
-	prefix.Get( "/:uuid.:ext" , ServeFile( s ) )
+	prefix.Get( "/:uuid.:ext" , UUIDFileLimter , ServeFile( s ) )
 
 	// youtube
 	youtube := prefix.Group( "/youtube" )
@@ -25,6 +28,7 @@ func SetupPublicRoutes( s *server.Server ) {
 	library := prefix.Group( "/library" )
 	library.Get( "/get/entries" , LibraryGetEntries( s ) )
 	// library-session
+	prefix.Use( PublicLimter )
 	prefix.Get( "/:library_key/:session_id/reset" , SessionReset( s ) )
 	prefix.Get( "/:library_key/:session_id/total" , SessionTotal( s ) )
 	prefix.Get( "/:library_key/:session_id/index" , SessionIndex( s ) )

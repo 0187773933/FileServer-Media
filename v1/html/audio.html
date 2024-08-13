@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Enhanced Audio Player</title>
+	<link href="http://localhost:5754/cdn/bootstrap.min.css" rel="stylesheet">
+	<link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.10.3/font/bootstrap-icons.min.css" rel="stylesheet">
+	<style>
+		body, html {
+			margin: 0;
+			padding: 0;
+			height: 100%;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			background: #1e1e1e;
+			color: white;
+			font-family: Arial, sans-serif;
+		}
+		.player-container {
+			width: 100%;
+			max-width: 600px; /* Wider on desktop */
+			background: #2a2a2a;
+			border-radius: 15px;
+			padding: 20px;
+			box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+		}
+		@media (max-width: 768px) {
+			.player-container {
+				max-width: 100%; /* Full width on mobile */
+			}
+		}
+		.slider {
+			width: 100%;
+			margin-bottom: 10px;
+		}
+		.time-display {
+			display: flex;
+			justify-content: space-between;
+			font-size: 12px;
+			margin-bottom: 10px;
+		}
+		.controls {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+		}
+		.control-btn {
+			background: none;
+			border: none;
+			color: white;
+			font-size: 24px;
+			cursor: pointer;
+			transition: color 0.3s ease;
+		}
+		.control-btn:hover {
+			color: #1db954;
+		}
+		.play-pause {
+			font-size: 40px;
+		}
+		.overlay {
+			position: fixed;
+			top: 0;
+			left: 0;
+			width: 100%;
+			height: 100%;
+			background: rgba(0, 0, 0, 0.7);
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			cursor: pointer;
+		}
+		.overlay-text {
+			font-size: 24px;
+			background: rgba(29, 185, 84, 0.8);
+			padding: 15px 30px;
+			border-radius: 30px;
+		}
+	</style>
+</head>
+<body>
+	<div class="player-container">
+		<input type="range" class="form-range slider" id="progressSlider" min="0" max="100" value="0">
+		<div class="time-display">
+			<span id="currentTime">0:00</span>
+			<span id="duration">0:00</span>
+		</div>
+		<div class="controls">
+			<button class="control-btn" id="rewind15"><i class="bi bi-skip-backward-fill"></i> 15</button>
+			<button class="control-btn play-pause" id="playPause"><i class="bi bi-play-fill"></i></button>
+			<button class="control-btn" id="forward15">15 <i class="bi bi-skip-forward-fill"></i></button>
+		</div>
+	</div>
+	<audio id="mediaPlayer">
+		Your browser does not support the audio element.
+	</audio>
+	<div id="overlay" class="overlay">
+		<div class="overlay-text">Click to Play</div>
+	</div>
+
+	<script src="http://localhost:5754/cdn/jquery.min.js"></script>
+	<script src="http://localhost:5754/cdn/bootstrap.bundle.min.js"></script>
+	<script>
+		document.addEventListener("DOMContentLoaded", () => {
+			// Store everything globally on the window object
+			window.FSM = {
+				session_key: "{{SESSION_KEY}}",
+				files_prefix: "{{FILES_PREFIX}}",
+				library_key: "{{LIBRARY_KEY}}",
+				session_id: "{{SESSION_ID}}",
+				time_str: "{{TIME_STR}}",
+				uuid: "{{UUID}}",
+				extension: "{{EXTENSION}}",
+				ready_url: "{{READY_URL}}",
+				media_type: "{{MEDIA_TYPE}}",
+				media: document.getElementById('mediaPlayer'),
+				overlay: document.getElementById('overlay'),
+				playPauseBtn: document.getElementById('playPause'),
+				progressSlider: document.getElementById('progressSlider'),
+				currentTimeDisplay: document.getElementById('currentTime'),
+				durationDisplay: document.getElementById('duration'),
+				rewind15: document.getElementById('rewind15'),
+				forward15: document.getElementById('forward15'),
+				last_time_update: 0,
+				update_count: 0
+			};
+
+			// Function to set media source and play it
+			window.FSM.setMediaSource = (src) => {
+				window.FSM.media.src = src;
+				window.FSM.media.load();
+				window.FSM.media.play().catch(console.error);
+			};
+
+			// Set the initial media source
+			const initial_src = `/${window.FSM.files_prefix}/${window.FSM.uuid}.${window.FSM.extension}`;
+			window.FSM.setMediaSource(initial_src);
+
+			// Play media on overlay click
+			window.FSM.overlay.addEventListener('click', () => {
+				window.FSM.overlay.style.display = 'none';
+				window.FSM.media.play().catch(console.error);
+			});
+
+			// Play/Pause functionality
+			window.FSM.playPauseBtn.addEventListener('click', () => {
+				if (window.FSM.media.paused) {
+					window.FSM.media.play();
+				} else {
+					window.FSM.media.pause();
+				}
+			});
+
+			// Update play/pause button icon
+			window.FSM.media.addEventListener('play', () => {
+				window.FSM.playPauseBtn.innerHTML = '<i class="bi bi-pause-fill"></i>';
+			});
+
+			window.FSM.media.addEventListener('pause', () => {
+				window.FSM.playPauseBtn.innerHTML = '<i class="bi bi-play-fill"></i>';
+			});
+
+			// Forward and rewind functionality
+			window.FSM.forward15.addEventListener('click', () => {
+				window.FSM.media.currentTime = Math.min(window.FSM.media.currentTime + 15, window.FSM.media.duration);
+			});
+
+			window.FSM.rewind15.addEventListener('click', () => {
+				window.FSM.media.currentTime = Math.max(window.FSM.media.currentTime - 15, 0);
+			});
+
+			// Progress bar slider functionality
+			window.FSM.progressSlider.addEventListener('input', (e) => {
+				const percent = e.target.value;
+				window.FSM.media.currentTime = (percent / 100) * window.FSM.media.duration;
+			});
+
+			// Time formatting function (Days:Hours:Minutes:Seconds)
+			const formatTime = (time) => {
+				const days = Math.floor(time / 86400);
+				time -= days * 86400;
+				const hours = Math.floor(time / 3600);
+				time -= hours * 3600;
+				const minutes = Math.floor(time / 60);
+				const seconds = Math.floor(time % 60).toString().padStart(2, '0');
+				return (days ? `${days}:` : '') + `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds}`;
+			};
+
+			// Handle metadata loaded
+			window.FSM.media.addEventListener('loadedmetadata', () => {
+				if (window.FSM.time_str !== "") {
+					let x_time = parseInt(window.FSM.time_str);
+					if (x_time > 2) {
+						window.FSM.media.currentTime = x_time - 1;
+					}
+				}
+				window.FSM.durationDisplay.textContent = formatTime(window.FSM.media.duration);
+				try {
+					let ready_fresh_url = window.FSM.ready_url.replace("ready", "readyfresh");
+					fetch(ready_fresh_url, { method: 'GET' }).catch(console.error);
+				} catch (e) {
+					console.log(e);
+				}
+			});
+
+			// Handle time updates
+			window.FSM.media.addEventListener('timeupdate', async () => {
+				let current_time = Math.round(window.FSM.media.currentTime);
+				if (current_time === window.FSM.last_time_update) return;
+				window.FSM.last_time_update = current_time;
+
+				let duration = Math.round(window.FSM.media.duration);
+				let finished = current_time >= (duration - 1);
+
+				// Update progress slider and time display
+				const percent = (window.FSM.media.currentTime / window.FSM.media.duration) * 100;
+				window.FSM.progressSlider.value = percent;
+				window.FSM.currentTimeDisplay.textContent = formatTime(window.FSM.media.currentTime);
+
+				if (finished) {
+					try {
+						const response = await fetch('/update_position', {
+							method: 'POST',
+							headers: {
+								'Content-Type': 'application/json',
+								'k': window.FSM.session_key
+							},
+							body: JSON.stringify({
+								library_key: window.FSM.library_key,
+								session_id: window.FSM.session_id,
+								uuid: window.FSM.uuid,
+								position: current_time,
+								duration: duration,
+								finished: finished
+							})
+						});
+
+						const update_result = await response.json();
+						if (update_result.next_uuid) {
+							// Update FSM variables with the new media details
+							window.FSM.uuid = update_result.next_uuid;
+							window.FSM.extension = update_result.next_extension;
+							// Set the new media source
+							const next_src = `/${window.FSM.files_prefix}/${window.FSM.uuid}.${window.FSM.extension}`;
+							window.FSM.setMediaSource(next_src);
+						}
+					} catch (error) {
+						console.error("Error updating position:", error);
+					}
+				} else {
+					// Regular position update without finishing the track
+					try {
+						await fetch('/update_position', {
+							method: 'POST',
+							headers: {
+								'Content-Type': 'application/json',
+								'k': window.FSM.session_key
+							},
+							body: JSON.stringify({
+								library_key: window.FSM.library_key,
+								session_id: window.FSM.session_id,
+								uuid: window.FSM.uuid,
+								position: current_time,
+								duration: duration,
+								finished: finished
+							})
+						});
+					} catch (error) {
+						console.error("Error updating position:", error);
+					}
+				}
+				window.FSM.update_count += 1;
+
+				// After a certain number of updates, handle auto-refresh logic if necessary
+				if (window.FSM.update_count >= 3 && finished) {
+					setTimeout(() => {
+						let url = new URL(window.location.href);
+						url.searchParams.set('ready_url', window.FSM.ready_url);
+						window.location.href = url.toString();
+					}, 1000);
+				}
+			});
+		});
+	</script>
+</body>
+</html>

@@ -120,6 +120,7 @@ func YouTubeSessionHTMLPlayer( s *server.Server ) fiber.Handler {
 			Time: current_time ,
 			Index: current_index ,
 			ReadyURL: ready_url ,
+			Type: "youtube-playlist" ,
 		}
 		html := utils.GetYouTubePlaylistHTML( options )
 		c.Set( "Content-Type" , "text/html" )

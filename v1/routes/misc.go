@@ -5,11 +5,13 @@ import (
 	// "strconv"
 	"time"
 	"context"
+	"path/filepath"
 	fiber "github.com/gofiber/fiber/v2"
 	server "github.com/0187773933/GO_SERVER/v1/server"
 	rate_limiter "github.com/gofiber/fiber/v2/middleware/limiter"
 	utils "github.com/0187773933/FileServer-Media/v1/utils"
 	types "github.com/0187773933/FileServer-Media/v1/types"
+	circular_set "github.com/0187773933/RedisCircular/v1/set"
 	// logger "github.com/0187773933/Logger/v1/logger"
 )
 
@@ -22,6 +24,16 @@ func PublicMaxedOut( c *fiber.Ctx ) error {
 }
 var PublicLimter = rate_limiter.New( rate_limiter.Config{
 	Max: 3 ,
+	Expiration: 1 * time.Second ,
+	KeyGenerator: func( c *fiber.Ctx ) string {
+		return c.Get( "x-forwarded-for" )
+	} ,
+	LimitReached: PublicMaxedOut ,
+	LimiterMiddleware: rate_limiter.SlidingWindow{} ,
+})
+
+var UUIDFileLimter = rate_limiter.New( rate_limiter.Config{
+	Max: 10 ,
 	Expiration: 1 * time.Second ,
 	KeyGenerator: func( c *fiber.Ctx ) string {
 		return c.Get( "x-forwarded-for" )
@@ -72,16 +84,53 @@ func UpdatePosition( s *server.Server ) fiber.Handler {
 			session_key_time_key := fmt.Sprintf( "%s.TIME" , session_key )
 			s.REDIS.Set( ctx , session_key_index_key , req.YouTubePlaylistIndex , 0 )
 			s.REDIS.Set( ctx , session_key_time_key , req.Position , 0 )
+			return c.Status( fiber.StatusOK ).SendString( "ok" )
 		} else { // local1
 			session_key := fmt.Sprintf( "%s.SESSIONS.%s.%s" , s.Config.Redis.Prefix , req.LibraryKey , req.SessionID )
+			session_key_index_key := fmt.Sprintf( "%s.INDEX" , session_key )
 			session_time_key := fmt.Sprintf( "%s.%s.TIME" , session_key , req.UUID )
+			global_key := fmt.Sprintf( "%s.%s" , s.Config.Redis.Prefix , req.LibraryKey )
+			global_key_index := fmt.Sprintf( "%s.INDEX" , global_key )
+			result := fiber.Map{
+				"result": true ,
+			}
 			if req.Finished {
 				session_finished_key := fmt.Sprintf( "%s.%s.FINISHED" , session_key , req.UUID )
 				s.REDIS.Set( ctx, session_finished_key , true , 0 )
+
+
+				// 2.) Set Global Version of Session Clone to Sessions Current Index
+				session_index := s.REDIS.Get( ctx , session_key_index_key ).Val()
+				if session_index == "" {
+					fmt.Println( "New Session , Setting Index to 0" )
+					session_index = "0"
+					s.REDIS.Set( ctx , session_key_index_key , session_index , 0 )
+				}
+				s.REDIS.Set( ctx , global_key_index , session_index , 0 )
+
+				// 3.) Get Next Global Version
+				next_global_version := circular_set.Next( s.REDIS, global_key )
+				next_id := next_global_version
+				global_version_index := s.REDIS.Get( ctx, global_key_index ).Val()
+				// fmt.Println( "new index" , global_version_index )
+				s.REDIS.Set( ctx , session_key_index_key , global_version_index , 0 )
+
+				// Reset FINISHED status
+				finished_key := fmt.Sprintf( "%s.%s.FINISHED" , session_key , next_id )
+				s.REDIS.Set( ctx , finished_key , false , 0 )
+
+				path_key := fmt.Sprintf( "%s.%s" , s.Config.Redis.Prefix , next_id )
+				path , _ := s.REDIS.Get( ctx , path_key ).Result()
+				extension_test := filepath.Ext( path )
+				if extension_test == "" {
+					return c.JSON( result )
+				}
+				result[ "next_uuid" ] = next_id
+				result[ "next_extension" ] = extension_test[ 1: ]
 			}
 			fmt.Println( session_time_key , req )
 			s.REDIS.Set( ctx , session_time_key , req.Position , 0 )
+			return c.JSON( result )
 		}
-		return c.SendStatus( fiber.StatusOK )
 	}
 }

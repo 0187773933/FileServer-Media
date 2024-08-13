@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Video Player</title>
+	<style>
+		body, html {
+			margin: 0;
+			padding: 0;
+			height: 100%;
+			overflow: hidden;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			background: black;
+		}
+		video {
+			width: 100%;
+			height: 100%;
+			object-fit: contain;
+		}
+		.overlay {
+			position: absolute;
+			top: 0;
+			left: 0;
+			width: 100%;
+			height: 100%;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			background: rgba(0, 0, 0, 0.5);
+			color: white;
+			font-size: 24px;
+			cursor: pointer;
+		}
+	</style>
+</head>
+<body>
+	<video id="mediaPlayer" controls>
+		Your browser does not support the video tag.
+	</video>
+	<div id="overlay" class="overlay">Click to Play</div>
+	<script>
+		function set_fullscreen() {
+			try {
+				if (window.FSM.media.requestFullscreen) {
+					window.FSM.media.requestFullscreen();
+				} else if (window.FSM.media.mozRequestFullScreen) {
+					window.FSM.media.mozRequestFullScreen();
+				} else if (window.FSM.media.webkitRequestFullscreen) {
+					window.FSM.media.webkitRequestFullscreen();
+				} else if (window.FSM.media.msRequestFullscreen) {
+					window.FSM.media.msRequestFullscreen();
+				}
+			} catch ( e ) { console.log( e ); }
+		}
+		document.addEventListener("DOMContentLoaded", () => {
+			// Store everything globally on the window object
+			window.FSM = {
+				session_key: "{{SESSION_KEY}}",
+				files_prefix: "{{FILES_PREFIX}}",
+				library_key: "{{LIBRARY_KEY}}",
+				session_id: "{{SESSION_ID}}",
+				time_str: "{{TIME_STR}}",
+				uuid: "{{UUID}}",
+				extension: "{{EXTENSION}}",
+				ready_url: "{{READY_URL}}",
+				media_type: "{{MEDIA_TYPE}}",
+				media: document.getElementById('mediaPlayer'),
+				overlay: document.getElementById('overlay'),
+				last_time_update: 0
+			};
+
+			// Function to set media source and play it
+			window.FSM.setMediaSource = (src) => {
+				window.FSM.media.src = src;
+				window.FSM.media.load();
+				window.FSM.media.play().then(() => {
+					set_fullscreen();
+				}).catch(console.error);
+			};
+
+			// Set the initial media source
+			const initial_src = `/${window.FSM.files_prefix}/${window.FSM.uuid}.${window.FSM.extension}`;
+			window.FSM.setMediaSource(initial_src);
+
+			// Play media on overlay click
+			window.FSM.overlay.addEventListener( 'click' , () => {
+				window.FSM.overlay.style.display = 'none';
+				window.FSM.media.play().then( () => {
+					set_fullscreen();
+				});
+			});
+
+			// Handle time updates to determine when the video ends
+			window.FSM.media.addEventListener('timeupdate', async () => {
+				let current_time = Math.round(window.FSM.media.currentTime);
+				if (current_time === window.FSM.last_time_update) return;
+				window.FSM.last_time_update = current_time;
+
+				let duration = Math.round(window.FSM.media.duration);
+				let finished = ( current_time >= duration );
+
+				if (finished) {
+					try {
+						const response = await fetch('/update_position', {
+							method: 'POST',
+							headers: {
+								'Content-Type': 'application/json',
+								'k': window.FSM.session_key
+							},
+							body: JSON.stringify({
+								library_key: window.FSM.library_key,
+								session_id: window.FSM.session_id,
+								uuid: window.FSM.uuid,
+								position: current_time,
+								duration: duration,
+								finished: finished
+							})
+						});
+						const update_result = await response.json();
+						if (update_result.next_uuid) {
+							// Update FSM variables with the new media details
+							window.FSM.uuid = update_result.next_uuid;
+							window.FSM.extension = update_result.next_extension;
+							// Set the new media source
+							const next_src = `/${window.FSM.files_prefix}/${window.FSM.uuid}.${window.FSM.extension}`;
+							window.FSM.setMediaSource(next_src);
+						}
+					} catch (error) {
+						console.error("Error updating position:", error);
+					}
+				}
+			});
+		});
+	</script>
+</body>
+</html>

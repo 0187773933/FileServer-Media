@@ -43,12 +43,29 @@
 		<div id="playButton">Play</div>
 	</div>
 	<script>
+		// Store everything globally on the window object
+		window.FSM = {
+			session_key: "{{SESSION_KEY}}",
+			library_key: "{{LIBRARY_KEY}}",
+			playlist_id: "{{PLAYLIST_ID}}",
+			session_id: "{{SESSION_ID}}",
+			start_time: "{{TIME}}",
+			start_index: "{{INDEX}}",
+			ready_url: "{{READY_URL}}",
+			type: "{{TYPE}}",
+			last_updated_time: 0,
+			player: null
+		};
+
+		// Load YouTube API script
 		var tag = document.createElement('script');
 		tag.src = "https://www.youtube.com/player_api";
 		var firstScriptTag = document.getElementsByTagName('script')[0];
 		firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+		// YouTube API ready callback
 		function onYouTubePlayerAPIReady() {
-			let x = new YT.Player('ytplayer', {
+			window.FSM.player = new YT.Player('ytplayer', {
 				width: '100%',
 				height: '100%',
 				playerVars: {
@@ -60,71 +77,106 @@
 					'onStateChange': onPlayerStateChange
 				}
 			});
-			window.player = x;
-			window.LAST_UPDATED_TIME = 0;
 			startTrackingPosition();
 		}
+
+		// Player ready callback
 		function onPlayerReady(event) {
 			document.getElementById('playButton').addEventListener('click', () => {
-				const playlistId = 'PLcW8xNfZoh7ezQJDBOrVsEygq7MmfTXLL';
-				const startIndex = 4;
-				const startTime = 30;
-				window.player.loadPlaylist({
-					list: playlistId,
-					index: startIndex,
-					startSeconds: startTime
+				window.FSM.player.loadPlaylist({
+					list: window.FSM.playlist_id,
+					index: parseInt(window.FSM.start_index),
+					startSeconds: parseInt(window.FSM.start_time),
 				});
-				window.player.playVideo();
+				window.FSM.player.playVideo();
 				document.getElementById('playButton').style.display = 'none';
 			});
 		}
 
+		// Set max quality
 		function setMaxQuality() {
-			const qualities = window.player.getAvailableQualityLevels();
+			const qualities = window.FSM.player.getAvailableQualityLevels();
 			if (qualities.length) {
-				console.log( "setting quality to" , qualities[0] );
-				window.player.setPlaybackQuality(qualities[0]);
+				console.log("setting quality to", qualities[0]);
+				window.FSM.player.setPlaybackQuality(qualities[0]);
 			}
 		}
+
+		// Request fullscreen
+		function requestFullscreen() {
+			const playerElement = document.getElementById('ytplayer');
+			if (playerElement.requestFullscreen) {
+				playerElement.requestFullscreen();
+			} else if (playerElement.mozRequestFullScreen) { // Firefox
+				playerElement.mozRequestFullScreen();
+			} else if (playerElement.webkitRequestFullscreen) { // Chrome, Safari and Opera
+				playerElement.webkitRequestFullscreen();
+			} else if (playerElement.msRequestFullscreen) { // IE/Edge
+				playerElement.msRequestFullscreen();
+			}
+		}
+
+		// Player state change callback
 		function onPlayerStateChange(event) {
 			if (event.data === YT.PlayerState.ENDED) {
-				if (window.player.getPlaylistIndex() < window.player.getPlaylist().length - 1) {
-					window.player.nextVideo();
+				if (window.FSM.player.getPlaylistIndex() < window.FSM.player.getPlaylist().length - 1) {
+					window.FSM.player.nextVideo();
 				}
 			} else if (event.data === YT.PlayerState.PLAYING) {
 				setMaxQuality();
+				requestFullscreen();
 			}
 		}
+
+		// Get current video ID
 		function getCurrentVideoId() {
-			const videoUrl = window.player.getVideoUrl();
+			const videoUrl = window.FSM.player.getVideoUrl();
 			const urlParams = new URLSearchParams(new URL(videoUrl).search);
 			const videoId = urlParams.get('v');
 			return videoId;
 		}
+
+		// Get current video title
 		function getCurrentVideoTitle() {
-			const videoData = window.player.getVideoData();
+			const videoData = window.FSM.player.getVideoData();
 			const videoTitle = videoData.title;
 			return videoTitle;
 		}
+
+		// Start tracking video position
 		function startTrackingPosition() {
 			setInterval(() => {
-				if ( !window.player ) { return; }
-				const currentTime = window.player.getCurrentTime();
-				if ( currentTime === window.LAST_UPDATED_TIME ) { return; }
-				window.LAST_UPDATED_TIME = currentTime;
-				const duration = window.player.getDuration();
+				if (!window.FSM.player) return;
+				if (!window.FSM.player.getCurrentTime) return;
+
+				const currentTime = parseInt(window.FSM.player.getCurrentTime());
+				if (currentTime === window.FSM.last_updated_time) return;
+				window.FSM.last_updated_time = currentTime;
+
+				const duration = parseInt(window.FSM.player.getDuration());
 				const videoId = getCurrentVideoId();
 				const videoTitle = getCurrentVideoTitle();
-				const playlistIndex = window.player.getPlaylistIndex();
+				const playlistIndex = window.FSM.player.getPlaylistIndex();
 				let info = {
-					time: currentTime,
-					duration: duration,
-					id: videoId,
+					library_key: window.FSM.library_key,
+					session_id: window.FSM.session_id,
+					youtube_playlist_id: window.FSM.playlist_id,
+					youtube_playlist_index: playlistIndex,
 					title: videoTitle,
-					index: playlistIndex
+					position: currentTime,
+					duration: duration,
+					ready_url: window.FSM.ready_url,
+					type: window.FSM.type,
 				};
-				console.log( info );
-			}, 1000 );
+				console.log(info);
+
+				// Send position update to the server
+				fetch('/update_position', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json', "k": window.FSM.session_key },
+					body: JSON.stringify(info)
+				});
+			}, 1000);
 		}
 	</script>
 </body>
